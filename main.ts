@@ -1,4 +1,4 @@
-import { App, Plugin, MarkdownPostProcessor, MarkdownPostProcessorContext, PluginSettingTab, Setting } from 'obsidian'
+import { App, Plugin, MarkdownPostProcessor, MarkdownPostProcessorContext, PluginSettingTab, Setting, MarkdownView } from 'obsidian'
 import { RangeSetBuilder } from "@codemirror/state"
 import { ViewPlugin, WidgetType, EditorView, ViewUpdate, Decoration, DecorationSet } from '@codemirror/view'
 
@@ -76,9 +76,16 @@ export default class MarkdownFurigana extends Plugin {
     await this.loadSettings();
     this.addSettingTab(new FuriganaSettingsTab(this.app, this));
 
-    if (this.settings.furiganaSource) {
-        this.extension.push(viewPlugin)
-    }
+    // Automatically toggles the Editor Extension on Live Preview
+    // Layout change seems to be called once when booting up
+    this.app.workspace.on('layout-change', () => {
+      const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView)?.getState();
+      this.extension.length = 0;
+      if (this.settings.furiganaSource || !(markdownView.source)) {
+        this.extension.push(viewPlugin);
+      }
+      this.app.workspace.updateOptions();
+    })
 
     this.registerMarkdownPostProcessor(this.postprocessor)
     this.registerEditorExtension(this.extension)
@@ -116,8 +123,9 @@ class FuriganaSettingsTab extends PluginSettingTab {
       toggle.onChange(value => {
         // Dynamically toggle Editor Extension
         this.plugin.extension.length = 0;
-        if (value) {
-            this.plugin.extension.push(viewPlugin);
+        const markdownView = this.plugin.app.workspace.getActiveViewOfType(MarkdownView)?.getState()
+        if (value || !markdownView.source) {
+          this.plugin.extension.push(viewPlugin);
         }
         this.plugin.app.workspace.updateOptions();
 
